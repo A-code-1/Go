@@ -37,63 +37,95 @@ func (p *Parser) skipWhitespace() {
 }
 
 // parseNumber — парсит число
-func (p *Parser) parseNumber() int {
+func (p *Parser) parseNumber() (int, error) {
 	p.skipWhitespace()
 	start := p.pos
 	for unicode.IsDigit(p.peek()) {
 		p.next()
 	}
+	if start == p.pos {
+		return 0, fmt.Errorf("на позиции %d ожидалось число", p.pos)
+	}
 	num, _ := strconv.Atoi(p.input[start:p.pos])
-	return num
+	return num, nil
 }
 
 // parseFactor — числа или скобки
-func (p *Parser) parseFactor() int {
+func (p *Parser) parseFactor() (int, error) {
 	p.skipWhitespace()
 	if p.peek() == '(' {
 		p.next()
-		val := p.parseExpression()
-		p.skipWhitespace()
-		if p.peek() == ')' {
-			p.next()
+		val, err := p.parseExpression()
+		if err != nil {
+			return 0, err
 		}
-		return val
+		p.skipWhitespace()
+		if p.peek() != ')' {
+			return 0, fmt.Errorf("на позиции %d нет закрывающей скобки", p.pos)
+		}
+		p.next()
+		return val, nil
 	}
 	return p.parseNumber()
 }
 
 // parseTerm — умножение и деление
-func (p *Parser) parseTerm() int {
-	val := p.parseFactor()
+func (p *Parser) parseTerm() (int, error) {
+	val, err := p.parseFactor()
+	if err != nil {
+		return 0, err
+	}
 	for {
 		p.skipWhitespace()
 		switch p.peek() {
 		case '*':
 			p.next()
-			val *= p.parseFactor()
+			rhs, err := p.parseFactor()
+			if err != nil {
+				return 0, err
+			}
+			val *= rhs
 		case '/':
 			p.next()
-			val /= p.parseFactor()
+			rhs, err := p.parseFactor()
+			if err != nil {
+				return 0, err
+			}
+			if rhs == 0 {
+				return 0, fmt.Errorf("деление на ноль")
+			}
+			val /= rhs
 		default:
-			return val
+			return val, nil
 		}
 	}
 }
 
 // parseExpression — сложение и вычитание
-func (p *Parser) parseExpression() int {
-	val := p.parseTerm()
+func (p *Parser) parseExpression() (int, error) {
+	val, err := p.parseTerm()
+	if err != nil {
+		return 0, err
+	}
 	for {
 		p.skipWhitespace()
 		switch p.peek() {
 		case '+':
 			p.next()
-			val += p.parseTerm()
+			rhs, err := p.parseTerm()
+			if err != nil {
+				return 0, err
+			}
+			val += rhs
 		case '-':
 			p.next()
-			val -= p.parseTerm()
+			rhs, err := p.parseTerm()
+			if err != nil {
+				return 0, err
+			}
+			val -= rhs
 		default:
-			return val
+			return val, nil
 		}
 	}
 }
@@ -106,7 +138,10 @@ func main() {
 			continue
 		}
 		parser := &Parser{input: line}
-		result := parser.parseExpression()
+		result, err := parser.parseExpression()
+		if err != nil {
+			fmt.Println("Ошибка:", err)
+		}
 		fmt.Println(result)
 	}
 }
