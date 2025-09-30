@@ -14,23 +14,24 @@ type Options struct {
 	SkipChars  int  // -s
 }
 
-func emit(orig string, count int, opts Options, result *[]string) {
+func emit(orig string, count int, opts Options, result []string) []string {
 	if orig == "" {
-		return
+		return result
 	}
 	if opts.Count {
-		*result = append(*result, fmt.Sprintf("%d %s", count, orig))
+		result = append(result, fmt.Sprintf("%d %s", count, orig))
 	} else if opts.OnlyDup {
 		if count > 1 {
-			*result = append(*result, orig)
+			result = append(result, orig)
 		}
 	} else if opts.OnlyUnique {
 		if count == 1 {
-			*result = append(*result, orig)
+			result = append(result, orig)
 		}
 	} else {
-		*result = append(*result, orig)
+		result = append(result, orig)
 	}
+	return result
 }
 
 func UniqueLines(lines []string, opts Options) []string {
@@ -48,13 +49,13 @@ func UniqueLines(lines []string, opts Options) []string {
 		if key == prevKey {
 			count++
 		} else {
-			emit(prevOrig, count, opts, &result)
+			emit(prevOrig, count, opts, result)
 			prevKey = key
 			prevOrig = line
 			count = 1
 		}
 	}
-	emit(prevOrig, count, opts, &result)
+	emit(prevOrig, count, opts, result)
 	return result
 }
 
