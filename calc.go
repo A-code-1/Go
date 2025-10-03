@@ -2,11 +2,18 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 	"unicode"
+)
+
+var (
+	ErrDivideByZero   = errors.New("деление на ноль")
+	ErrExpectedNumber = errors.New("ожидалось число")
+	ErrUnclosedParen  = errors.New("нет закрывающей скобки")
 )
 
 type Parser struct {
@@ -44,7 +51,7 @@ func (p *Parser) parseNumber() (int, error) {
 		p.next()
 	}
 	if start == p.pos {
-		return 0, fmt.Errorf("на позиции %d ожидалось число", p.pos)
+		return 0, fmt.Errorf("%w на позиции %d", ErrExpectedNumber, p.pos)
 	}
 	num, _ := strconv.Atoi(p.input[start:p.pos])
 	return num, nil
@@ -53,6 +60,18 @@ func (p *Parser) parseNumber() (int, error) {
 // parseFactor — числа или скобки
 func (p *Parser) parseFactor() (int, error) {
 	p.skipWhitespace()
+	if p.peek() == '+' {
+		p.next()
+		return p.parseFactor()
+	}
+	if p.peek() == '-' {
+		p.next()
+		val, err := p.parseFactor()
+		if err != nil {
+			return 0, err
+		}
+		return -val, nil
+	}
 	if p.peek() == '(' {
 		p.next()
 		val, err := p.parseExpression()
@@ -61,7 +80,7 @@ func (p *Parser) parseFactor() (int, error) {
 		}
 		p.skipWhitespace()
 		if p.peek() != ')' {
-			return 0, fmt.Errorf("на позиции %d нет закрывающей скобки", p.pos)
+			return 0, fmt.Errorf("%w на позиции %d", ErrUnclosedParen, p.pos)
 		}
 		p.next()
 		return val, nil
@@ -92,7 +111,7 @@ func (p *Parser) parseTerm() (int, error) {
 				return 0, err
 			}
 			if rhs == 0 {
-				return 0, fmt.Errorf("деление на ноль")
+				return 0, ErrDivideByZero
 			}
 			val /= rhs
 		default:

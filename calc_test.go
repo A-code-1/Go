@@ -26,6 +26,11 @@ func TestCalc(t *testing.T) {
 		{"15/3+2", 7, false},
 		{"24/(1+3)", 6, false},
 
+		{"-5", -5, false},
+		{"-(2+3)", -5, false},
+		{"-3*2", -6, false},
+		{"2+-3", -1, false},
+
 		{"5/0", 0, true},
 		{"(2+3", 0, true},
 		{"6-*2", 0, true},
