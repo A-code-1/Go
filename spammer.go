@@ -12,42 +12,37 @@ func RunPipeline(cmds ...cmd) {
 	}
 	// стартовый канал
 	in := make(chan interface{})
+	out := in
 
 	wg := &sync.WaitGroup{}
-	// запускаем все команды кроме последней
-	for i := 0; i < len(cmds)-1; i++ {
-		out := make(chan interface{})
+	for _, c := range cmds {
+		out = make(chan interface{})
 		wg.Add(1)
+
 		go func(c cmd, in, out chan interface{}) {
 			defer wg.Done()
 			defer close(out)
 			c(in, out)
-		}(cmds[i], in, out)
+		}(c, in, out)
+
 		in = out
 	}
 
-	// последняя команда — отдельный канал
-	lastOut := make(chan interface{})
-	wg.Add(1)
-	go func(c cmd, in, out chan interface{}) {
-		defer wg.Done()
-		defer close(out)
-		c(in, out)
-	}(cmds[len(cmds)-1], in, lastOut)
-
-	// читаем всё из последнего канала
+	// дренируем последний канал
 	go func() {
-		for range lastOut {
-			// пусто — дренируем
+		for range out {
 		}
 	}()
 	wg.Wait()
 }
 
 func SelectUsers(in, out chan interface{}) {
-	var wg sync.WaitGroup
-	seen := make(map[uint64]bool)
-	var mtx sync.Mutex
+	var (
+		wg sync.WaitGroup
+		mu sync.Mutex
+	)
+
+	seen := make(map[uint64]struct{})
 
 	for v := range in {
 		email := v.(string)
@@ -55,14 +50,13 @@ func SelectUsers(in, out chan interface{}) {
 		go func(e string) {
 			defer wg.Done()
 			u := GetUser(e)
-
-			mtx.Lock()
-			have := seen[u.ID]
-			if !have {
-				seen[u.ID] = true
+			mu.Lock()
+			_, exists := seen[u.ID]
+			if !exists {
+				seen[u.ID] = struct{}{}
 			}
-			mtx.Unlock()
-			if !have {
+			mu.Unlock()
+			if !exists {
 				out <- u
 			}
 		}(email)
@@ -135,20 +129,19 @@ func CheckSpam(in, out chan interface{}) {
 
 // аккумулируем, сортируем и отправляем строки
 func CombineResults(in, out chan interface{}) {
-	res := make([]MsgData, 0)
+	var res []MsgData
+
 	for v := range in {
 		res = append(res, v.(MsgData))
 	}
-	// сначала HasSpam=true, потом false, везде по ID по возрастанию
+
 	sort.Slice(res, func(i, j int) bool {
-		if res[i].HasSpam && !res[j].HasSpam {
-			return true
-		}
-		if !res[i].HasSpam && res[j].HasSpam {
-			return false
+		if res[i].HasSpam != res[j].HasSpam {
+			return res[i].HasSpam
 		}
 		return res[i].ID < res[j].ID
 	})
+
 	for _, r := range res {
 		out <- fmt.Sprintf("%t %d", r.HasSpam, r.ID)
 	}
