@@ -45,7 +45,10 @@ func SelectUsers(in, out chan interface{}) {
 	seen := make(map[uint64]struct{})
 
 	for v := range in {
-		email := v.(string)
+		email, ok := v.(string)
+		if !ok {
+			continue
+		}
 		wg.Add(1)
 		go func(e string) {
 			defer wg.Done()
@@ -73,7 +76,10 @@ func SelectMessages(in, out chan interface{}) {
 		defer close(batches)
 		b := make([]User, 0, GetMessagesMaxUsersBatch)
 		for v := range in {
-			u := v.(User)
+			u, ok := v.(User)
+			if !ok {
+				continue
+			}
 			b = append(b, u)
 			if len(b) == GetMessagesMaxUsersBatch {
 				// отправляем копию (чтобы безопасно параллелить)
@@ -112,7 +118,11 @@ func CheckSpam(in, out chan interface{}) {
 	var wg sync.WaitGroup
 
 	for v := range in {
-		id := v.(MsgID)
+		id, ok := v.(MsgID)
+		if !ok {
+			continue
+		}
+
 		wg.Add(1)
 		go func(mid MsgID) {
 			defer wg.Done()
@@ -132,7 +142,11 @@ func CombineResults(in, out chan interface{}) {
 	var res []MsgData
 
 	for v := range in {
-		res = append(res, v.(MsgData))
+		data, ok := v.(MsgData)
+		if !ok {
+			continue
+		}
+		res = append(res, data)
 	}
 
 	sort.Slice(res, func(i, j int) bool {
